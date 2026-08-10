@@ -1,0 +1,18 @@
+# Folder File Lister → Excel
+
+A simple Streamlit app that lets you select a target folder, list all files, and download the list as an Excel file.
+
+## Features
+
+- Enter any folder path
+- Optional recursive scan (include subfolders)
+- Option to show/hide hidden files
+- Clean table view
+- One-click Excel download
+
+## How to run
+
+1. Clone the repository
+```bash
+git clone https://github.com/yourusername/folder-file-lister.git
+cd folder-file-lister

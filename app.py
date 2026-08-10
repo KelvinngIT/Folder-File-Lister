@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 from pathlib import Path
 from datetime import datetime
-import os
 from io import BytesIO
 
 st.set_page_config(
@@ -12,26 +11,59 @@ st.set_page_config(
 )
 
 st.title("📁 Folder File Lister to Excel")
-st.markdown("Enter a target folder path, list all files, and download the list as Excel.")
+st.markdown("Select a folder path → list all files → download as Excel")
+
+# ---------- Notice ----------
+st.info(
+    """
+    **Note:** Streamlit cannot open a real folder picker dialog because of browser security.  
+    Please **copy the full path** of your folder and paste it below.
+    """,
+    icon="ℹ️"
+)
 
 # ---------- Sidebar ----------
 with st.sidebar:
     st.header("Settings")
     recursive = st.checkbox("Include subfolders (recursive)", value=False)
     show_hidden = st.checkbox("Show hidden files", value=False)
+
     st.markdown("---")
-    st.markdown("**How to use**")
-    st.markdown("1. Type the full path of the folder")
-    st.markdown("2. Click **Scan Folder**")
-    st.markdown("3. Download the Excel file")
+    st.markdown("**How to get the folder path**")
+    st.markdown("""
+    **Windows:**
+    1. Open the folder in File Explorer
+    2. Click the address bar
+    3. Copy the path (Ctrl + C)
+    4. Paste it below
 
-# ---------- Main input ----------
-folder_path = st.text_input(
-    "Target folder path",
-    placeholder=r"C:\Users\YourName\Documents or /home/user/Documents",
-    help="Enter the absolute path of the folder you want to scan"
-)
+    **Mac / Linux:**
+    1. Open the folder
+    2. Right-click → “Copy as Pathname” (or similar)
+    3. Paste it below
+    """)
 
+# ---------- Folder selection area ----------
+st.subheader("1. Select Folder")
+
+col1, col2 = st.columns([4, 1])
+
+with col1:
+    folder_path = st.text_input(
+        "Folder path",
+        placeholder=r"Example: C:\Users\YourName\Desktop\Reports",
+        label_visibility="collapsed",
+        key="folder_input"
+    )
+
+with col2:
+    # This button just gives a visual "Select Folder" feeling
+    # It focuses attention on the text input
+    if st.button("📂 Select Folder", use_container_width=True):
+        st.toast("Please paste the folder path in the box on the left", icon="📋")
+
+# ---------- Scan button ----------
+st.subheader("2. Scan & Download")
 scan_btn = st.button("🔍 Scan Folder", type="primary", use_container_width=True)
 
 
@@ -52,15 +84,15 @@ def scan_folder(path_str: str, recursive: bool = False, show_hidden: bool = Fals
     path = Path(path_str).expanduser().resolve()
 
     if not path.exists():
-        raise FileNotFoundError(f"Folder does not exist: {path}")
+        raise FileNotFoundError(
+            f"Folder does not exist:\n`{path}`\n\n"
+            "Please check the path and make sure you are running the app locally."
+        )
     if not path.is_dir():
-        raise NotADirectoryError(f"Path is not a folder: {path}")
+        raise NotADirectoryError(f"This path is not a folder:\n`{path}`")
 
     files = []
-    if recursive:
-        iterator = path.rglob("*")
-    else:
-        iterator = path.glob("*")
+    iterator = path.rglob("*") if recursive else path.glob("*")
 
     for item in iterator:
         if not item.is_file():
@@ -85,13 +117,14 @@ def scan_folder(path_str: str, recursive: bool = False, show_hidden: bool = Fals
         except Exception:
             continue
 
+    files.sort(key=lambda x: x["Name"].lower())
     return files, str(path)
 
 
-# ---------- Run scan ----------
+# ---------- Main logic ----------
 if scan_btn:
     if not folder_path.strip():
-        st.warning("Please enter a folder path.")
+        st.warning("Please enter a folder path first.")
     else:
         try:
             with st.spinner("Scanning folder..."):
@@ -107,16 +140,15 @@ if scan_btn:
                 df = pd.DataFrame(files)
                 df.insert(0, "#", range(1, len(df) + 1))
 
-                st.success(f"Found **{len(df)}** files in: `{resolved_path}`")
+                st.success(f"Found **{len(df)}** files in:\n`{resolved_path}`")
 
-                # Show table
                 st.dataframe(
                     df[["#", "Name", "Path", "Size", "Type", "Modified"]],
                     use_container_width=True,
                     height=500
                 )
 
-                # Create Excel in memory
+                # Excel download
                 buffer = BytesIO()
                 with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
                     df.to_excel(writer, index=False, sheet_name="Files")
@@ -130,8 +162,7 @@ if scan_btn:
                 )
 
         except Exception as e:
-            st.error(f"Error: {e}")
+            st.error(f"**Error:** {e}")
 
-# ---------- Footer ----------
 st.markdown("---")
-st.caption("Made with Streamlit • List files from any folder and export to Excel")
+st.caption("Made with Streamlit • Must be run locally to access folders on your computer")

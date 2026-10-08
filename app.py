@@ -3,6 +3,8 @@ import pandas as pd
 from pathlib import Path
 from datetime import datetime
 from io import BytesIO
+import platform
+import os
 
 # ---------- Page config ----------
 st.set_page_config(
@@ -34,8 +36,9 @@ st.markdown("List files from a folder and download the result as Excel")
 # ---------- Notice ----------
 st.info(
     """
-    **Note:**  
-    Folder scanning only works when you run the app **locally**.
+    **Important:**  
+    - Folder scanning **only works when you run the app locally** on your computer.  
+    - It will **not work** on Streamlit Cloud because the cloud server cannot access your local hard drive.
     """,
     icon="ℹ️"
 )
@@ -58,7 +61,7 @@ with col2:
 st.subheader("2. Scan & Download")
 scan_btn = st.button("🔍 Scan Folder", type="primary", use_container_width=True)
 
-# ---------- Folder helper functions ----------
+# ---------- Helper functions ----------
 def format_size(size: int) -> str:
     if size < 1024:
         return f"{size} B"
@@ -69,15 +72,44 @@ def format_size(size: int) -> str:
     else:
         return f"{size / (1024 * 1024 * 1024):.2f} GB"
 
+def is_windows_path(path_str: str) -> bool:
+    """Check if the path looks like a Windows path (e.g. C:\\... or \\\\server\\...)"""
+    path_str = path_str.strip()
+    return (
+        (len(path_str) >= 2 and path_str[1] == ":" and path_str[0].isalpha())  # C:\...
+        or path_str.startswith("\\\\")  # UNC path
+    )
+
 def scan_folder(path_str: str, recursive: bool = False, show_hidden: bool = False):
     path_str = path_str.strip().strip('"').strip("'")
-    path = Path(path_str).expanduser().resolve()
+
+    # Detect if user pasted a Windows path while running on non-Windows (e.g. Streamlit Cloud)
+    if is_windows_path(path_str) and platform.system() != "Windows":
+        raise RuntimeError(
+            "You pasted a **Windows path**, but this app is running on a Linux server "
+            "(Streamlit Cloud).\n\n"
+            "→ Folder scanning only works when you run the app **locally on your Windows computer**.\n\n"
+            "Please download the code and run it with:\n"
+            "```\nstreamlit run your_app.py\n```"
+        )
+
+    path = Path(path_str).expanduser()
+
+    # Only resolve if it is a real existing path to avoid weird /mount/... behaviour
+    try:
+        path = path.resolve(strict=False)
+    except Exception:
+        pass
 
     if not path.exists():
         raise FileNotFoundError(
             f"Folder does not exist:\n`{path}`\n\n"
-            "Please check the path and make sure you are running the app locally."
+            "Possible reasons:\n"
+            "1. You are running the app on Streamlit Cloud (it cannot see your local folders).\n"
+            "2. The path is wrong or the folder was moved/deleted.\n"
+            "3. You need to run the app **locally** on your computer."
         )
+
     if not path.is_dir():
         raise NotADirectoryError(f"This path is not a folder:\n`{path}`")
 
